@@ -31,6 +31,8 @@ type RDS struct {
 	consulNodeName   string
 	consulMasterTag  string
 	consulReplicaTag string
+	consulWriterTag  string
+	consulReaderTag  string
 }
 
 // New ...
@@ -70,6 +72,8 @@ func New(c *cli.Context) *RDS {
 		consulNodeName:   c.String("rds_consul-node-name"),
 		consulMasterTag:  c.String("rds_consul-master-tag"),
 		consulReplicaTag: c.String("rds_consul-replica-tag"),
+		consulWriterTag:  c.String("rds_consul-writer-tag"),
+		consulReaderTag:  c.String("rds_consul-reader-tag"),
 	}
 }
 

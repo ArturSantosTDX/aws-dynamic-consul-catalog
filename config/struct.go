@@ -35,6 +35,7 @@ type Tags map[string]string
 // RDS ...
 type RDSInstances struct {
 	RDSInstance *rdsTypes.DBInstance
+	RDSCluster  []*rdsTypes.DBCluster
 	Tags        Tags
 }
 

@@ -60,6 +60,18 @@ func main() {
 				EnvVar: "RDS_CONSUL_REPLICA_TAG",
 			},
 			cli.StringFlag{
+				Name:   "rds_consul-reader-tag",
+				Usage:  "The Consul RDS service tag for reader instances",
+				Value:  "reader",
+				EnvVar: "RDS_CONSUL_READER_TAG",
+			},
+			cli.StringFlag{
+				Name:   "rds_consul-writer-tag",
+				Usage:  "The Consul RDS service tag for writer instances",
+				Value:  "writer",
+				EnvVar: "RDS_CONSUL_WRITER_TAG",
+			},
+			cli.StringFlag{
 				Name:   "rds_consul-node-name",
 				Usage:  "Consul RDS catalog node name",
 				Value:  "rds",
