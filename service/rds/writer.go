@@ -1,9 +1,13 @@
 package rds
 
 import (
+	"context"
 	"reflect"
 	"regexp"
 
+	aws "github.com/aws/aws-sdk-go-v2/aws"
+	rds "github.com/aws/aws-sdk-go-v2/service/rds"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	observer "github.com/imkira/go-observer"
 	config "github.com/seatgeek/aws-dynamic-consul-catalog/config"
 	log "github.com/sirupsen/logrus"
@@ -41,6 +45,17 @@ func (r *RDS) writer(prop observer.Property, state *config.CatalogState) {
 					}
 
 					for _, instance := range instances {
+						engine := aws.ToString(instance.RDSInstance.Engine)
+						if engine == "aurora-postgresql" {
+							instance.RDSCluster = func() []*rdstypes.DBCluster {
+								instanceRole, err := r.getInstanceRole(aws.ToString(instance.RDSInstance.DBClusterIdentifier))
+								if err != nil {
+									logger.Errorf("Failed to get node role for instance %s: %v", aws.ToString(instance.RDSInstance.DBInstanceIdentifier), err)
+									return nil
+								}
+								return instanceRole
+							}()
+						}
 						r.writeBackendCatalogInstances(instance, logger, state, found)
 					}
 					for _, service := range r.getDifference(seen.Services, found.Services) {
@@ -149,4 +164,26 @@ func stringInSlice(a string, list []string) bool {
 		}
 	}
 	return false
+}
+
+func (r *RDS) getInstanceRole(cluster string) ([]*rdstypes.DBCluster, error) {
+	log.Debugf("Getting instance role for instance group %s", cluster)
+	input := &rds.DescribeDBClustersInput{
+		DBClusterIdentifier: &cluster,
+	}
+
+	resp, err := r.rds.DescribeDBClusters(context.TODO(), input)
+	if err != nil {
+		log.Printf("Failed to list roles for instances %s: %v", cluster, err)
+		return nil, err
+	}
+
+	if len(resp.DBClusters) > 0 {
+		RDSCluster := make([]*rdstypes.DBCluster, len(resp.DBClusters))
+		for i := range resp.DBClusters {
+			RDSCluster[i] = &resp.DBClusters[i]
+		}
+		return RDSCluster, nil
+	}
+	return nil, nil
 }

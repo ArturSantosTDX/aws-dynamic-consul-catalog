@@ -19,6 +19,8 @@ func (r *RDS) writeBackendCatalogInstances(instance *config.RDSInstances, logger
 	}
 	id := name
 
+	engine := aws.ToString(instance.RDSInstance.Engine)
+
 	if *instance.RDSInstance.DBInstanceStatus == "creating" {
 		logger.Warnf("Instance %s id being created, skipping for now", name)
 		return
@@ -32,29 +34,42 @@ func (r *RDS) writeBackendCatalogInstances(instance *config.RDSInstances, logger
 	addr := aws.ToString(instance.RDSInstance.Endpoint.Address)
 	port := aws.ToInt64(aws.Int64(int64(*instance.RDSInstance.Endpoint.Port)))
 
-	isSlave := instance.RDSInstance.ReadReplicaSourceDBInstanceIdentifier != nil
-	// isMaster := len(instance.RDSInstance.ReadReplicaDBInstanceIdentifiers) >= 0
-	isMaster := !isSlave
-
-	logger.Debugf("  ID:   %s", id)
-	logger.Debugf("  Name: %s", name)
-	logger.Debugf("  Addr: %s", addr)
-	logger.Debugf("  Port: %d", port)
-
 	tags := make([]string, 0)
-	if isMaster {
-		tags = append(tags, r.consulMasterTag)
-		id = id + "-" + r.consulMasterTag
-	}
-	if isSlave {
-		tags = append(tags, r.consulReplicaTag)
-		id = id + "-" + r.consulReplicaTag
-	}
 
-	// if !isSlave && !isMaster {
-	// 	tags = append(tags, r.consulMasterTag)
-	// 	tags = append(tags, r.consulReplicaTag)
-	// }
+	if engine == "aurora-postgresql" {
+		instanceRole := false
+		for _, member := range instance.RDSCluster[0].DBClusterMembers {
+			if aws.ToString(member.DBInstanceIdentifier) == aws.ToString(instance.RDSInstance.DBInstanceIdentifier) {
+				instanceRole = aws.ToBool(member.IsClusterWriter)
+			}
+		}
+		isWriter := instanceRole
+		if isWriter {
+			tags = append(tags, r.consulWriterTag)
+			id = id + "-" + r.consulWriterTag
+		}
+		if !isWriter {
+			tags = append(tags, r.consulReaderTag)
+			id = id + "-" + r.consulReaderTag
+		}
+	} else {
+		isSlave := instance.RDSInstance.ReadReplicaSourceDBInstanceIdentifier != nil
+		isMaster := !isSlave
+
+		logger.Debugf("  ID:   %s", id)
+		logger.Debugf("  Name: %s", name)
+		logger.Debugf("  Addr: %s", addr)
+		logger.Debugf("  Port: %d", port)
+
+		if isMaster {
+			tags = append(tags, r.consulMasterTag)
+			id = id + "-" + r.consulMasterTag
+		}
+		if isSlave {
+			tags = append(tags, r.consulReplicaTag)
+			id = id + "-" + r.consulReplicaTag
+		}
+	}
 
 	status := "passing"
 	switch aws.ToString(instance.RDSInstance.DBInstanceStatus) {
